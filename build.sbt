@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.11.7"
 
-lazy val flinkVersion = "1.6.0"
+lazy val flinkVersion = "1.5.0"
 lazy val breezeVersion = "0.13"
 
 lazy val commonDependencies = Seq(
@@ -23,8 +23,8 @@ lazy val flinkDependencies = Seq(
   "org.apache.flink" %% "flink-scala" % flinkVersion,
   "org.apache.flink" %% "flink-streaming-scala" % flinkVersion,
   "org.apache.flink" %% "flink-streaming-java" % flinkVersion,
-  "org.apache.flink" % "flink-connector-kafka-0.11_2.11" % flinkVersion,
-  "org.apache.flink" %% "flink-test-utils" % "1.6.0"
+  "org.apache.flink" %% "flink-table" % flinkVersion,
+  "org.apache.flink" % "flink-connector-kafka-0.11_2.11" % flinkVersion
 
 
 )
@@ -45,7 +45,10 @@ lazy val root = (project in file(".")).
     libraryDependencies ++= commonDependencies,
     libraryDependencies ++= flinkDependencies.map(_ % "compile"),
     //    libraryDependencies ++= flinkDependencies.map(_ % "compile"),
-    libraryDependencies ++= breezeDependencies.map(_ % "compile")
+    libraryDependencies ++= breezeDependencies.map(_ % "compile"),
+    libraryDependencies ++= Seq(
+      "net.debasishg" %% "redisclient" % "3.8"    // https://github.com/debasishg/scala-redis
+    )
   )
 
 lazy val commonSettings = Seq(
