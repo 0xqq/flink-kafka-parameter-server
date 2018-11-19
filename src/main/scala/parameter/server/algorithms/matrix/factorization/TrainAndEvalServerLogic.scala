@@ -4,14 +4,13 @@ import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 import org.apache.flink.util.Collector
 import parameter.server.communication.Messages
 import parameter.server.communication.Messages.PullAnswer
-import parameter.server.logic.server.ServerLogic
+import parameter.server.logic.server.{AsynchronousServerLogic, SynchronousServerLogic}
 import parameter.server.utils.Types.ItemId
 import parameter.server.utils.{Types, Vector}
 
 import com.redis._
 
-class TrainAndEvalServerLogic(_init: Int => Vector, _update: (Vector, Vector) => Vector) extends ServerLogic[Long, Int, Vector] {
-
+class TrainAndEvalServerLogic(_init: Int => Vector, _update: (Vector, Vector) => Vector)  extends SynchronousServerLogic[Long, Int, Vector] {
   // WARNING !! NOT USED: - only kept because class must implement as abstract field/method - can be deleted...
   override lazy val model: ValueState[Vector] = getRuntimeContext.getState(
     new ValueStateDescriptor[Vector]("shared parameters", classOf[Vector]))
