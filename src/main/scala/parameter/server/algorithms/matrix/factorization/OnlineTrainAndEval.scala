@@ -23,6 +23,10 @@ object OnlineTrainAndEval {
     val n = 10
     val learningRate = 0.4
     val parallelism = 4
+
+    val redisHost = "localhost"
+    val redisPort = 6379
+
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(parallelism)
 
@@ -39,11 +43,9 @@ object OnlineTrainAndEval {
     val ps = new ParameterServer[EvaluationRequest, Vector, Long, Int](
       env,
       src = source,
-      workerLogic = new TrainAndEvalWorkerLogic(n, learningRate, 9, -0.001, 0.001, 100, 75),
-      serverLogic = new TrainAndEvalServerLogic(x => Vector(factorInitDesc.open().nextFactor(x.hashCode())), Vector.vectorSum),
-      serverToWorkerParse = pullAnswerFromString, workerToServerParse = workerToServerParse,
-      host = "localhost:", port = 9092, serverToWorkerTopic = "serverToWorkerTopic", workerToServerTopic = "workerToServerTopic",
-      broadcastServerToWorkers = true)
+      workerLogic = new TrainAndEvalWorkerLogic(n, learningRate, 9, -0.001, 0.001, 100, 75, host=redisHost, port=redisPort),
+      serverToWorkerParse = pullAnswerFromString//, workerToServerParse = workerToServerParse,
+      )
 
     val topKOut = ps
       .start()
@@ -98,22 +100,8 @@ object OnlineTrainAndEval {
 
   }
 
-
-
-  def workerToServerParse(line: String): Message[Long, Int, Vector] = {
-    val fields = line.split(":")
-
-    fields.head match {
-      case "Pull" => Pull(fields(1).toLong, fields(2).toInt)
-      case "Push" => Push(fields(1).toLong, fields(2).toInt, Vector(fields(3).split(",").map(_.toDouble)))
-      case _ =>
-        throw new NotSupportedMessage
-        null
-    }
-  }
-
   def pullAnswerFromString(line: String): PullAnswer[Long, Int, Vector] = {
-    val fields = line.split(":")
+    val fields = line.split(",")
     PullAnswer(fields(0).toInt, fields(1).toLong, Vector(fields(2).split(",").map(_.toDouble)))
   }
 }

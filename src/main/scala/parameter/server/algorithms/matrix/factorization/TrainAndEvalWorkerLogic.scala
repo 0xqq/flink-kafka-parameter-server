@@ -1,12 +1,14 @@
 package parameter.server.algorithms.matrix.factorization
 
+import java.io.InputStream
+
+import com.redis.RedisClient
 import org.apache.flink.util.Collector
 import parameter.server.algorithms.factors.{RangedRandomFactorInitializerDescriptor, SGDUpdater}
 import parameter.server.algorithms.matrix.factorization.RecSysMessages.{EvaluationOutput, EvaluationRequest}
 import parameter.server.algorithms.pruning.LEMPPruningFunctions._
 import parameter.server.algorithms.pruning._
 import parameter.server.communication.Messages
-import parameter.server.communication.Messages.{Pull, Push}
 import parameter.server.logic.worker.WorkerLogic
 import parameter.server.utils.Types.ItemId
 import parameter.server.utils.{Types, Vector}
@@ -17,13 +19,19 @@ import scala.util.control.Breaks._
 
 class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSampleRate: Int,
                               rangeMin: Double, rangeMax: Double,
-                              workerK: Int, bucketSize: Int, pruningStrategy: LEMPPruningStrategy = LI(5, 2.5))
+                              workerK: Int, bucketSize: Int, pruningStrategy: LEMPPruningStrategy = LI(5, 2.5),
+                              host: String, port: Int)
   extends WorkerLogic[Long, Int, EvaluationRequest, Vector]{
 
   lazy val factorInitDesc = RangedRandomFactorInitializerDescriptor(numFactors, rangeMin, rangeMax)
   lazy val SGDUpdater = new SGDUpdater(learningRate)
 
   val model = new mutable.HashMap[ItemId, Vector]()
+  lazy val senderClient = new RedisClient(host, port)
+  lazy val receiverClient = new RedisClient(host, port)
+
+  val channelName = "uservectors"
+
   def itemIds: Array[ItemId] = model.keySet.toArray
   val itemIdsDescendingByLength = new mutable.TreeSet[(ItemId, Double)]()(Types.topKOrdering)
 
@@ -144,10 +152,10 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
     Vector.vectorSum(negativeUserDelta, Vector(positiveUserDelta))
   }
 
+  // This must be called when a user vector arrives at the redis channel:
   override def onPullReceive(msg: Messages.Message[Int, Long, Vector],
-                             out: Collector[Either[Types.ParameterServerOutput, Messages.Message[Long, Int, Vector]]]): Unit = {
+                             out: Collector[Types.ParameterServerOutput]): Unit = {
     val userVector = msg.message.get
-
 
     val topK = generateLocalTopK(userVector, pruningStrategy)
 
@@ -155,23 +163,34 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
 
     _request match {
       case None =>
-        out.collect(Left(EvaluationOutput(-1, msg.destination, topK, -1)))
+        out.collect(EvaluationOutput(-1, msg.destination, topK, -1))
 
       case Some(request) =>
         val itemVector = model.getOrElseUpdate(request.itemId, Vector(factorInitDesc.open().nextFactor(request.itemId)))
 
         val userDelta: Vector = train(userVector, request, itemVector)
 
-        out.collect(Right(Push(msg.destination, msg.source, userDelta)))
+        // Send update to db:
+        //out.collect(Right(Push(msg.destination, msg.source, userDelta)))
+        // TODO: use srciptLoad & evalSHA
+        val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/push_update_user_vector.lua")
+        val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
+        senderClient.evalBulk(scriptContent, List(msg.source), userDelta.value.toList)
 
-        out.collect(Left(EvaluationOutput(request.itemId, request.evaluationId, topK, request.ts)))
+        out.collect(EvaluationOutput(request.itemId, request.evaluationId, topK, request.ts))
     }
   }
 
   override def onInputReceive(data: EvaluationRequest,
-                              out: Collector[Either[Types.ParameterServerOutput, Messages.Message[Long, Int, Vector]]]): Unit = {
+                              out: Collector[Types.ParameterServerOutput]): Unit = {
     requestBuffer.update(data.evaluationId, data)
 
-    out.collect(Right(Pull(data.evaluationId, data.userId)))
+    // Query user vector from db & send to channel:
+    //out.collect(Right(Pull(data.evaluationId, data.userId)))
+    // TODO: use srciptLoad & evalSHA
+    val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/pull_user_vector.lua")
+    val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
+    senderClient.evalBulk(scriptContent, List(data.userId), List(channelName, numFactors, rangeMin, rangeMax))
+    // no output is to be generated here.
   }
 }

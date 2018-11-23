@@ -23,7 +23,7 @@ lazy val flinkDependencies = Seq(
   "org.apache.flink" %% "flink-scala" % flinkVersion,
   "org.apache.flink" %% "flink-streaming-scala" % flinkVersion,
   "org.apache.flink" %% "flink-streaming-java" % flinkVersion,
-  "org.apache.flink" % "flink-connector-kafka-0.11_2.11" % flinkVersion,
+  //"org.apache.flink" % "flink-connector-kafka-0.11_2.11" % flinkVersion,
   "org.apache.flink" %% "flink-test-utils" % "1.6.0"
 
 )
