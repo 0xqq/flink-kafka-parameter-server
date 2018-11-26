@@ -30,7 +30,6 @@ object OnlineTrainAndEval {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(parallelism)
 
-
     lazy val factorInitDesc = RangedRandomFactorInitializerDescriptor(n, -0.001, 0.001)
 
     val source = env
@@ -44,7 +43,7 @@ object OnlineTrainAndEval {
       env,
       src = source,
       workerLogic = new TrainAndEvalWorkerLogic(n, learningRate, 9, -0.001, 0.001, 100, 75, host=redisHost, port=redisPort),
-      serverToWorkerParse = pullAnswerFromString//, workerToServerParse = workerToServerParse,
+      serverToWorkerParse = pullAnswerFromString
       )
 
     val topKOut = ps
@@ -101,7 +100,7 @@ object OnlineTrainAndEval {
   }
 
   def pullAnswerFromString(line: String): PullAnswer[Long, Int, Vector] = {
-    val fields = line.split(",")
+    val fields = line.split(":")
     PullAnswer(fields(0).toInt, fields(1).toLong, Vector(fields(2).split(",").map(_.toDouble)))
   }
 }

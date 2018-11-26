@@ -1,11 +1,12 @@
 package parameter.server.utils
 
 import com.redis._
+import grizzled.slf4j.Logging
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction
 import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext
 
-class RedisPubSubSource extends RichSourceFunction[String] {
+class RedisPubSubSource extends RichSourceFunction[String] with Logging {
 
   var client: RedisClient = _
   var channelName: String = _
@@ -24,6 +25,7 @@ class RedisPubSubSource extends RichSourceFunction[String] {
   }
 
   def msgConsumeCallback(msg: PubSubMessage) = {
+    //logger.info("Message received.")
     msg match {
       case S(channel, _) => //TODO log subscribe
       case U(channel, _) => //TODO log unsubscribe
@@ -32,12 +34,14 @@ class RedisPubSubSource extends RichSourceFunction[String] {
     }
   }
 
-  override def run(ctx: SourceContext[String]): Unit = while (isRunning) {
+  override def run(ctx: SourceContext[String]): Unit = {
     sourceContext = ctx
     client.subscribe(channelName)(msgConsumeCallback(_))
-    //for {
-    //  data <- client. get data ...
-    //} yield ctx.collect(data)
+    while (isRunning) {
+      //for {
+      //  data <- client. get data ...
+      //} yield ctx.collect(data)
+    }
   }
 
 }

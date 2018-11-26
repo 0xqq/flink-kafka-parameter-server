@@ -3,6 +3,7 @@ package parameter.server.algorithms.matrix.factorization
 import java.io.InputStream
 
 import com.redis.RedisClient
+import grizzled.slf4j.Logging
 import org.apache.flink.util.Collector
 import parameter.server.algorithms.factors.{RangedRandomFactorInitializerDescriptor, SGDUpdater}
 import parameter.server.algorithms.matrix.factorization.RecSysMessages.{EvaluationOutput, EvaluationRequest}
@@ -21,7 +22,7 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
                               rangeMin: Double, rangeMax: Double,
                               workerK: Int, bucketSize: Int, pruningStrategy: LEMPPruningStrategy = LI(5, 2.5),
                               host: String, port: Int)
-  extends WorkerLogic[Long, Int, EvaluationRequest, Vector]{
+  extends WorkerLogic[Long, Int, EvaluationRequest, Vector] with Logging {
 
   lazy val factorInitDesc = RangedRandomFactorInitializerDescriptor(numFactors, rangeMin, rangeMax)
   lazy val SGDUpdater = new SGDUpdater(learningRate)
@@ -185,12 +186,15 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
                               out: Collector[Types.ParameterServerOutput]): Unit = {
     requestBuffer.update(data.evaluationId, data)
 
+    //logger.info("Input received.")
+
     // Query user vector from db & send to channel:
     //out.collect(Right(Pull(data.evaluationId, data.userId)))
     // TODO: use srciptLoad & evalSHA
     val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/pull_user_vector.lua")
     val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
-    senderClient.evalBulk(scriptContent, List(data.userId), List(channelName, numFactors, rangeMin, rangeMax))
+    senderClient.evalBulk(scriptContent, List(data.userId), List(data.itemId,
+      channelName, numFactors, rangeMin, rangeMax))
     // no output is to be generated here.
   }
 }
