@@ -193,7 +193,7 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
     // TODO: use srciptLoad & evalSHA
     val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/pull_user_vector.lua")
     val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
-    senderClient.evalBulk(scriptContent, List(data.userId), List(data.itemId,
+    senderClient.evalBulk(scriptContent, List(data.userId), List(data.evaluationId,
       channelName, numFactors, rangeMin, rangeMax))
     // no output is to be generated here.
   }

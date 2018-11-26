@@ -28,7 +28,7 @@ local function setRandomVector(key, size, min, max)
     end
 end
 
--- message string format: "key(sourceId/userId),destinationId(itemId),val0,val2,val3,..."
+-- message string format: "userKey(sourceId=userId),destinationId(=evaluationId),val0,val2,val3,..."
 
 local flatMap = redis.call('HGETALL', userKey)
 if #flatMap == 0 then

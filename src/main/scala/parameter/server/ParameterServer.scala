@@ -35,12 +35,12 @@ class ParameterServer[T <: WorkerInput,
 
   def workerInput(inputStream: DataStream[T], serverToWorkerStream: DataStream[Message[SK, WK, P]]): ConnectedStreams[Message[SK, WK, P], T] = {
 //    if (broadcastServerToWorkers)
-//      serverToWorkerStream.broadcast
-//        .connect(inputStream.keyBy(_.destination.hashCode()))
+      serverToWorkerStream.broadcast
+        .connect(inputStream.keyBy(_.destination.hashCode()))
 //    else
-      serverToWorkerStream
-        .connect(inputStream)
-        .keyBy(_.destination.hashCode(), _.destination.hashCode())
+//      serverToWorkerStream
+//        .connect(inputStream)
+//        .keyBy(_.destination.hashCode(), _.destination.hashCode())
   }
 
   def workerStream(workerInputStream: ConnectedStreams[Message[SK, WK, P], T]): DataStream[ParameterServerOutput] =
