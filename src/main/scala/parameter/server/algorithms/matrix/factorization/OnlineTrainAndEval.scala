@@ -14,7 +14,7 @@ import parameter.server.algorithms.factors.RangedRandomFactorInitializerDescript
 import parameter.server.algorithms.matrix.factorization.RecSysMessages.{EvaluationOutput, EvaluationRequest}
 import parameter.server.communication.Messages._
 import parameter.server.utils.Types.{ItemId, ParameterServerOutput}
-import parameter.server.utils.{IDGenerator, Vector}
+import parameter.server.utils.{IDGenerator, RedisPubSubSource, Vector}
 
 object OnlineTrainAndEval {
 
@@ -26,6 +26,7 @@ object OnlineTrainAndEval {
 
     val redisHost = "localhost"
     val redisPort = 6379
+    val redisChannel = "uservectors"
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(parallelism)
@@ -42,7 +43,8 @@ object OnlineTrainAndEval {
     val ps = new ParameterServer[EvaluationRequest, Vector, Long, Int](
       env,
       src = source,
-      workerLogic = new TrainAndEvalWorkerLogic(n, learningRate, 9, -0.001, 0.001, 100, 75, host=redisHost, port=redisPort),
+      workerLogic = new TrainAndEvalWorkerLogic(n, learningRate, 9, -0.001, 0.001, 100, 75, host=redisHost, port=redisPort, channelName=redisChannel),
+      serverPubSubSource = new RedisPubSubSource(host=redisHost, port=redisPort, channelName=redisChannel),
       serverToWorkerParse = pullAnswerFromString
       )
 

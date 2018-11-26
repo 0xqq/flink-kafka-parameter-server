@@ -6,15 +6,14 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction
 import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext
 
-class RedisPubSubSource extends RichSourceFunction[String] with Logging {
+class RedisPubSubSource (host: String, port: Integer, channelName: String) extends RichSourceFunction[String] with Logging {
 
-  var client: RedisClient = _
-  var channelName: String = _
   var sourceContext: SourceContext[String] = _
+  var client: RedisClient = _
 
   override def open(parameters: Configuration) = {
-    client = new RedisClient(parameters.getString("host", "localhost"), parameters.getInteger("port", 6379))
-    channelName = parameters.getString("channel", "uservectors")
+    // Remark: parameters is said to be deprecated in Flink API.
+    client = new RedisClient(host, port)
   }
 
   @volatile var isRunning = true
@@ -27,10 +26,14 @@ class RedisPubSubSource extends RichSourceFunction[String] with Logging {
   def msgConsumeCallback(msg: PubSubMessage) = {
     //logger.info("Message received.")
     msg match {
-      case S(channel, _) => //TODO log subscribe
-      case U(channel, _) => //TODO log unsubscribe
-      case M(channel, msgContent) => sourceContext.collect(msgContent)
-      case E(throwable) =>  //TODO log error
+      case S(channel, _) => // subscribe - do nothing.
+      case U(channel, _) => // unsubscribe - do nothing.
+
+      case M(channel, msgContent) =>
+        sourceContext.collect(msgContent)
+
+      case E(throwable) =>
+        logger.error("Error message received from db channel.", throwable)
     }
   }
 

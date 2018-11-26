@@ -2,6 +2,7 @@ package parameter.server
 
 import org.apache.flink.api.common.serialization
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.streaming.api.functions.source.RichSourceFunction
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.util.Collector
 import parameter.server.communication.Messages.Message
@@ -15,7 +16,8 @@ class ParameterServer[T <: WorkerInput,
                                env: StreamExecutionEnvironment,
                                src: DataStream[T],
                                workerLogic: WorkerLogic[WK, SK, T, P],
-                               serverToWorkerParse: String => Message[SK, WK, P]//, workerToServerParse: String => Message[WK, SK, P],
+                               serverPubSubSource: RichSourceFunction[String],
+                               serverToWorkerParse: String => Message[SK, WK, P]
                              ) {
 
   def start(): DataStream[ParameterServerOutput] = {
@@ -30,7 +32,7 @@ class ParameterServer[T <: WorkerInput,
 
   def serverToWorker(): DataStream[Message[SK, WK, P]] =
     env
-      .addSource(new RedisPubSubSource())//(serverToWorkerTopic, new serialization.SimpleStringSchema(), properties).setStartFromLatest())
+      .addSource(serverPubSubSource)
       .map(serverToWorkerParse)
 
   def workerInput(inputStream: DataStream[T], serverToWorkerStream: DataStream[Message[SK, WK, P]]): ConnectedStreams[Message[SK, WK, P], T] = {

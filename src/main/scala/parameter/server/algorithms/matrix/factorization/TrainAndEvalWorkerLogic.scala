@@ -21,7 +21,7 @@ import scala.util.control.Breaks._
 class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSampleRate: Int,
                               rangeMin: Double, rangeMax: Double,
                               workerK: Int, bucketSize: Int, pruningStrategy: LEMPPruningStrategy = LI(5, 2.5),
-                              host: String, port: Int)
+                              host: String, port: Int, channelName: String)
   extends WorkerLogic[Long, Int, EvaluationRequest, Vector] with Logging {
 
   lazy val factorInitDesc = RangedRandomFactorInitializerDescriptor(numFactors, rangeMin, rangeMax)
@@ -30,8 +30,6 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
   val model = new mutable.HashMap[ItemId, Vector]()
   lazy val senderClient = new RedisClient(host, port)
   lazy val receiverClient = new RedisClient(host, port)
-
-  val channelName = "uservectors"
 
   def itemIds: Array[ItemId] = model.keySet.toArray
   val itemIdsDescendingByLength = new mutable.TreeSet[(ItemId, Double)]()(Types.topKOrdering)
@@ -153,9 +151,10 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
     Vector.vectorSum(negativeUserDelta, Vector(positiveUserDelta))
   }
 
-  // This must be called when a user vector arrives at the redis channel:
   override def onPullReceive(msg: Messages.Message[Int, Long, Vector],
                              out: Collector[Types.ParameterServerOutput]): Unit = {
+    //logger.info("User vector received by worker from Redis channel.")
+
     val userVector = msg.message.get
 
     val topK = generateLocalTopK(userVector, pruningStrategy)
@@ -164,15 +163,16 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
 
     _request match {
       case None =>
+        // when the observation which initiated the db query belongs to another worker - output a local topK for the observation with dummy additional data:
         out.collect(EvaluationOutput(-1, msg.destination, topK, -1))
 
       case Some(request) =>
+        // when the observation which initiated the db query belongs to this worker - output the local topK with the request data (itemId & ts):
         val itemVector = model.getOrElseUpdate(request.itemId, Vector(factorInitDesc.open().nextFactor(request.itemId)))
 
         val userDelta: Vector = train(userVector, request, itemVector)
 
-        // Send update to db:
-        //out.collect(Right(Push(msg.destination, msg.source, userDelta)))
+        // Send update (userDelta) to db:
         // TODO: use srciptLoad & evalSHA
         val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/push_update_user_vector.lua")
         val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
@@ -184,17 +184,17 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
 
   override def onInputReceive(data: EvaluationRequest,
                               out: Collector[Types.ParameterServerOutput]): Unit = {
+    //logger.info("Input received by worker.")
+
     requestBuffer.update(data.evaluationId, data)
 
-    //logger.info("Input received.")
-
-    // Query user vector from db & send to channel:
-    //out.collect(Right(Pull(data.evaluationId, data.userId)))
+    // Query user vector from db & send to channel for broadcasting:
     // TODO: use srciptLoad & evalSHA
     val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/pull_user_vector.lua")
     val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
     senderClient.evalBulk(scriptContent, List(data.userId), List(data.evaluationId,
       channelName, numFactors, rangeMin, rangeMax))
-    // no output is to be generated here.
+
+    // No output is to be generated here.
   }
 }
