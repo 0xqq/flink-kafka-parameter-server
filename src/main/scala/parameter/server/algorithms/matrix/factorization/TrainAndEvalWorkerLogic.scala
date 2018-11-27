@@ -28,13 +28,20 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
   lazy val SGDUpdater = new SGDUpdater(learningRate)
 
   val model = new mutable.HashMap[ItemId, Vector]()
-  lazy val senderClient = new RedisClient(host, port)
-  lazy val receiverClient = new RedisClient(host, port)
+  lazy val pushClient = new RedisClient(host, port)
+  lazy val pullClient = new RedisClient(host, port)
+  lazy val pullScriptId = pullClient.scriptLoad(loadScriptContent("/scripts/pull_user_vector.lua"))
+  lazy val pushScriptId = pushClient.scriptLoad(loadScriptContent("/scripts/push_update_user_vector.lua"))
 
   def itemIds: Array[ItemId] = model.keySet.toArray
   val itemIdsDescendingByLength = new mutable.TreeSet[(ItemId, Double)]()(Types.topKOrdering)
 
   val requestBuffer = new mutable.HashMap[Long, EvaluationRequest]()
+
+  def loadScriptContent (resourcePath: String) = {
+    val scriptStream = getClass.getResourceAsStream(resourcePath)
+    scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
+  }
 
   def generateLocalTopK(userVector: Vector, pruningStrategy: LEMPPruningStrategy): List[(ItemId, Double)] = {
 
@@ -172,11 +179,8 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
 
         val userDelta: Vector = train(userVector, request, itemVector)
 
-        // Send update (userDelta) to db:
-        // TODO: use srciptLoad & evalSHA
-        val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/push_update_user_vector.lua")
-        val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
-        senderClient.evalBulk(scriptContent, List(msg.source), userDelta.value.toList)
+        // update user vector in db with userDelta
+        pushClient.evalSHA(pushScriptId.get, List(msg.source), userDelta.value.toList)
 
         out.collect(EvaluationOutput(request.itemId, request.evaluationId, topK, request.ts))
     }
@@ -189,11 +193,8 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
     requestBuffer.update(data.evaluationId, data)
 
     // Query user vector from db & send to channel for broadcasting:
-    // TODO: use srciptLoad & evalSHA
-    val scriptStream : InputStream = getClass.getResourceAsStream("/scripts/pull_user_vector.lua")
-    val scriptContent = scala.io.Source.fromInputStream(scriptStream).getLines.mkString("\n")
-    senderClient.evalBulk(scriptContent, List(data.userId), List(data.evaluationId,
-      channelName, numFactors, rangeMin, rangeMax))
+    pullClient.evalSHA(pullScriptId.get, List(data.userId),
+      List(data.evaluationId, channelName, numFactors, rangeMin, rangeMax))
 
     // No output is to be generated here.
   }
