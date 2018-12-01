@@ -18,14 +18,17 @@ object Messages {
     }
   }
 
-//  case class Push[WK, SK, P <: Parameter](src: WK, dest: SK, msg: P) extends Message(src, dest, Some(msg)) {
-//    override def toString: String =
-//      s"Push:$src:$dest:$msg"
-//  }
-//  case class Pull[WK, SK, P <: Parameter](src: WK, dest: SK) extends Message[WK, SK, P](src, dest, None) {
-//    override def toString: String =
-//      s"Pull:$src:$dest"
-//  }
+  // not used by redis-only solution:
+  case class Push[WK, SK, P <: Parameter](src: WK, dest: SK, msg: P) extends Message(src, dest, Some(msg)) {
+    override def toString: String =
+      s"Push:$src:$dest:$msg"
+  }
+
+  // not used by redis-only solution:
+  case class Pull[WK, SK, P <: Parameter](src: WK, dest: SK) extends Message[WK, SK, P](src, dest, None) {
+    override def toString: String =
+      s"Pull:$src:$dest"
+  }
 
   case class PullAnswer[WK, SK, P <: Parameter](src: SK, dest: WK, msg: P) extends Message(src, dest, Some(msg)) {
     override def toString: String =

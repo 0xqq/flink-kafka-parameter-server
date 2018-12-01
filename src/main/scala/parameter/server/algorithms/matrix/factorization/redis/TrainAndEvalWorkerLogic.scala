@@ -1,4 +1,4 @@
-package parameter.server.algorithms.matrix.factorization
+package parameter.server.algorithms.matrix.factorization.redis
 
 import java.io.InputStream
 
@@ -10,7 +10,7 @@ import parameter.server.algorithms.matrix.factorization.RecSysMessages.{Evaluati
 import parameter.server.algorithms.pruning.LEMPPruningFunctions._
 import parameter.server.algorithms.pruning._
 import parameter.server.communication.Messages
-import parameter.server.logic.worker.WorkerLogic
+import parameter.server.redis.logic.worker.WorkerLogic
 import parameter.server.utils.Types.ItemId
 import parameter.server.utils.{Types, Vector}
 
@@ -30,8 +30,8 @@ class TrainAndEvalWorkerLogic(numFactors: Int, learningRate: Double, negativeSam
   val model = new mutable.HashMap[ItemId, Vector]()
   lazy val pushClient = new RedisClient(host, port)
   lazy val pullClient = new RedisClient(host, port)
-  lazy val pullScriptId = pullClient.scriptLoad(loadScriptContent("/scripts/pull_user_vector.lua"))
-  lazy val pushScriptId = pushClient.scriptLoad(loadScriptContent("/scripts/push_update_user_vector.lua"))
+  lazy val pullScriptId = pullClient.scriptLoad(loadScriptContent("/scripts/redis/pull_user_vector.lua"))
+  lazy val pushScriptId = pushClient.scriptLoad(loadScriptContent("/scripts/redis/push_update_user_vector.lua"))
 
   def itemIds: Array[ItemId] = model.keySet.toArray
   val itemIdsDescendingByLength = new mutable.TreeSet[(ItemId, Double)]()(Types.topKOrdering)

@@ -12,7 +12,7 @@ object Types {
 
   trait ParameterServerOutput
 
-  // Types needed by matrix factorization
+  // Types needed by matrix redis
   type UserId = AnyVal
   type ItemId = AnyVal
   type TopK = mutable.PriorityQueue[(ItemId, Double)]

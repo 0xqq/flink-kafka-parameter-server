@@ -1,13 +1,9 @@
-package parameter.server
+package parameter.server.redis
 
-import org.apache.flink.api.common.serialization
-import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction
 import org.apache.flink.streaming.api.scala._
-import org.apache.flink.util.Collector
 import parameter.server.communication.Messages.Message
-import parameter.server.logic.worker.WorkerLogic
-import parameter.server.utils.RedisPubSubSource
+import parameter.server.redis.logic.worker.WorkerLogic
 import parameter.server.utils.Types.{Parameter, ParameterServerOutput, WorkerInput}
 
 class ParameterServer[T <: WorkerInput,
